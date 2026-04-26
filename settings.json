@@ -1,4 +1,5 @@
 {
+  "effortLevel": "max",
   "skipDangerousModePermissionPrompt": true,
   "hooks": {
     "PreToolUse": [
