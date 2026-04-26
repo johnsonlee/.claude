@@ -14,20 +14,38 @@ description: >
 ## 工作流程
 
 1. **明确主题和方向** — 跟用户对齐要写什么、核心观点是什么、目标读者是谁
-1. **生成 Markdown 草稿** — 按照下面的格式和风格要求生成文章
+1. **生成中文 Markdown 草稿** — 按照下面的格式和风格要求生成文章
 1. **引号检查** — 草稿写入文件后，运行 `python3 ~/.claude/skills/write-blog/fix_quotes.py <file.md>` 自动修正引号（中文内容用 `“”`，英文内容用 `""`）
-1. **用户确认** — 让用户审阅草稿，根据反馈修改
-1. **推送到 GitHub** — 用户确认后，通过 GitHub CLI 或者 GitHub API 推送到 repo
+1. **生成英文翻译** — 基于中文草稿生成对应的英文版本（详见 [i18n 双语发布](#i18n-双语发布)）
+1. **用户确认** — 让用户审阅中英文草稿，根据反馈修改
+1. **推送到 GitHub** — 用户确认后，通过 GitHub CLI 或者 GitHub API 将中英文文章一起推送到 repo
 
 ## 文章格式
 
-### Front Matter
+### Front Matter（中文版）
 
 ```yaml
 ---
 title: 文章标题
 date: YYYY-MM-DD HH:mm:ss
-categories: 
+categories:
+  - Category Name
+tags:
+  - Tag1
+  - Tag2
+i18n_key: filename-slug
+---
+```
+
+### Front Matter（英文版）
+
+```yaml
+---
+title: "English Title"
+date: YYYY-MM-DD HH:mm:ss
+lang: en
+i18n_key: filename-slug
+categories:
   - Category Name
 tags:
   - Tag1
@@ -35,6 +53,12 @@ tags:
 ---
 ```
 
+**关键区别**：
+- 英文版必须有 `lang: en`，中文版不需要（默认 `zh-CN`）
+- 两个版本的 `i18n_key` 必须相同，值与文件名 slug 一致
+- `date`、`categories`、`tags` 两个版本保持一致
+
+**通用规则**：
 - `date` 使用当前本地时间，格式 `YYYY-MM-DD HH:mm:ss`
 - `categories` 通常只有一个，常见的有：Independent Thinking, Computer Science, Android, Performance 等。如不确定，问用户
 - `tags` 选 3-6 个相关标签，英文
@@ -42,8 +66,10 @@ tags:
 
 ### 文件命名
 
-- 路径：`source/_posts/<filename>.md`
-- 文件名：英文 kebab-case，从标题提炼关键词，例如 `agent-economy-app-future.md`
+- 中文版路径：`source/_posts/<slug>.md`
+- 英文版路径：`source/_posts/<slug>.en.md`
+- slug：英文 kebab-case，从标题提炼关键词，例如 `agent-economy-app-future`
+- 两个文件的 slug 部分必须相同，英文版仅多 `.en` 后缀
 
 ### 摘要截断
 
@@ -148,29 +174,58 @@ tags:
 - ❌ 不要写不言自明的修饰语，如“面试工程师”的“工程师”、“这个动作的价值”的“这个动作”
 - ❌ 不要用“一个很大的好处是”、“问题在于”、“我认为”这类注水连接词，直接说
 
+## i18n 双语发布
+
+每篇博客都需要同时发布中文和英文两个版本。
+
+### 英文版生成规则
+
+- 基于中文定稿翻译，不是独立创作
+- 保持原文的论证结构、段落划分和 `<!-- more -->` 位置
+- 语气自然流畅，像英文母语者写的博客，不是逐句直译
+- 技术术语保持一致（中英文版用同一个英文术语）
+- `**加粗**` 位置与中文版对应
+- 英文版同样需要运行引号检查：`python3 ~/.claude/skills/write-blog/fix_quotes.py <file.en.md>`
+
+### 文件配对示例
+
+```
+source/_posts/agent-economy-app-future.md       # 中文版
+source/_posts/agent-economy-app-future.en.md    # 英文版
+```
+
+两个文件的 front matter 中 `i18n_key` 值相同（如 `agent-economy-app-future`），Hexo 的 i18n 脚本会自动建立语言切换链接。
+
 ## 推送到 GitHub
 
 ### 推送确认
 
 推送前**必须**跟用户确认：
 
-1. 展示最终的文章内容
-1. 确认文件名
+1. 展示最终的文章内容（中文版和英文版）
+1. 确认文件名（两个文件）
 1. 明确告知将要 push 到 `johnsonlee/blog` 的 `master` 分支
 
-只有用户明确说“可以推”、“推吧”、“发布”等确认性的话，才执行推送。
+只有用户明确说”可以推”、”推吧”、”发布”等确认性的话，才执行推送。
 
 ### Claude Code 环境
 
-直接用 `gh` CLI 推送（确保已通过 `gh auth status` 登录）：
+直接用 `gh` CLI 推送（确保已通过 `gh auth status` 登录），中英文文章分别推送：
 
 ```bash
-# 将文章推送到 blog repo
-gh api repos/johnsonlee/blog/contents/source/_posts/<filename>.md \
+# 推送中文版
+gh api repos/johnsonlee/blog/contents/source/_posts/<slug>.md \
   --method PUT \
-  --field message=”post: add <filename>.md” \
+  --field message=”post: add <slug>.md” \
   --field branch=master \
-  --field content=$(base64 < <full-path-to-file>.md)
+  --field content=$(base64 < <full-path-to-zh-file>.md)
+
+# 推送英文版
+gh api repos/johnsonlee/blog/contents/source/_posts/<slug>.en.md \
+  --method PUT \
+  --field message=”post: add <slug>.en.md” \
+  --field branch=master \
+  --field content=$(base64 < <full-path-to-en-file>.md)
 ```
 
 如果文件已存在需要更新，先获取 sha 再带上 `--field sha=<sha>`。
@@ -181,7 +236,8 @@ Claude Web 没有 `gh` CLI，使用 `push_to_github.sh` 脚本（需要用户提
 
 ```bash
 export GITHUB_TOKEN=<用户提供的 token>
-bash push_to_github.sh <filename>.md
+bash push_to_github.sh <slug>.md
+bash push_to_github.sh <slug>.en.md
 ```
 
 如果用户不想推送，把生成的 .md 文件提供下载即可。
